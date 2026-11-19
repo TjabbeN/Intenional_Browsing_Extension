@@ -2,8 +2,8 @@
 
 A Manifest V3 extension for Chromium browsers that adds friction to distracting
 sites and blocks sites, keywords and page content configured by enterprise
-policy. It supports someone working on a compulsive-use problem, so the
-protections are deliberately hard to undo.
+policy. It's built for people who want protections that are hard to undo in
+a weak moment, so that is a design goal, not a side effect.
 
 ## Layout
 
