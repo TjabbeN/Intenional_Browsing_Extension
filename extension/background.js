@@ -5,7 +5,7 @@
 //                           and feature toggles, set by an administrator via
 //                           enterprise policy (parsed in managed-config.js).
 //   chrome.storage.sync     Sites added from the popup (add-only), delay sites,
-//                           loop-break URL and overlay colour.
+//                           and overlay appearance.
 //   chrome.storage.local    Cached remote lists, overlay image, grace periods,
 //                           focused-time and lockdown state.
 //
@@ -564,8 +564,8 @@ function unwrapChain(rawUrl) {
 // ─── Spiral detection and lockdown ──────────────────────────────────────────
 // Blocks that come in a rapid burst (tab closes, wrong puzzle answers) engage
 // a 30-minute lockdown. During lockdown soft triggers close the tab instead
-// of showing a puzzle, and lockdownExtraSites are closed as well. There is no
-// countdown; the loop-break dot flashes once when lockdown starts.
+// of showing a puzzle, and lockdownExtraSites are closed as well. Lockdown is
+// silent: nothing shows when it starts or how long it lasts.
 const SPIRAL_WINDOW_MS = 10 * 60 * 1000;
 const SPIRAL_THRESHOLD = 3.0;
 const LOCKDOWN_DURATION_MS = 30 * 60 * 1000;
@@ -998,14 +998,6 @@ function managedStatus() {
   return { present: config.present, counts: config.counts, skipped: config.skipped, toggles };
 }
 
-async function openLoopBreak() {
-  const r = await chrome.storage.sync.get(['loopBreakUrl']);
-  const url = (r.loopBreakUrl || '').trim();
-  if (!/^https?:\/\//i.test(url)) return { success: false, reason: 'no-url' };
-  await chrome.tabs.create({ url });
-  return { success: true };
-}
-
 const MESSAGE_HANDLERS = {
   refreshBlocklist: () => refreshRemoteLists(),
 
@@ -1039,8 +1031,6 @@ const MESSAGE_HANDLERS = {
   addUserBlockedSite: (request) => addUserBlockedSite(request.site),
 
   getUserBlockedCount: () => ({ count: userBlockedDomains.size }),
-
-  openLoopBreak: () => openLoopBreak(),
 
   closeTab: (request, sender) => {
     const tab = sender.tab;

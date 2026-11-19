@@ -8,15 +8,20 @@ weak moment. Your own day-to-day settings stay in the popup.
 
 ## Features
 
-**Mindful delays (popup).** For each site you add, a full-page overlay counts
-down before the page can be used, then asks for your reason for visiting.
-- The countdown only runs while the tab is visible and its window has focus.
+**Mindful delays (popup, add-only).** For each site you add, a full-page
+overlay counts down before the page can be used. Then a circle has to be held
+down for three seconds; letting go early starts it over.
+- The countdown and the hold only count time while the tab is visible and its
+  window has focus. Holding Space or Enter works like holding the mouse.
 - Every completed visit adds a few seconds to the next delay. Delays go back
   to their starting value once a day.
 - An optional grace period skips the overlay for a while after a visit.
 - Optional time charging adds delay in proportion to the time the site
   actually spends in the foreground.
-- You can set the overlay's background colour or image.
+- You can set the overlay's background colour (five presets or any custom
+  colour) or a full-screen image, kept at your screen's resolution. Over an
+  image, the panel behind the text is see-through by an amount you choose.
+- Sites added here can't be removed from the popup.
 
 **Blocking (managed).** Tabs whose URL matches a blocked site are closed.
 - A domain covers all of its subdomains. A `host/path` entry covers that path
@@ -49,12 +54,8 @@ maths or typing puzzle instead of closing the tab.
 
 **Spiral lockdown.** Several blocks in quick succession (tab closes, wrong
 puzzle answers) start a 30-minute lockdown. During lockdown soft triggers
-close the tab, and extra lockdown-only sites are blocked too. The loop-break
-dot flashes once when lockdown begins; there is no countdown.
-
-**Loop-break page (popup).** When you set a URL (a journal, a chat, a support
-resource), a small dot appears in the corner of every page and opens it in
-one click.
+close the tab, and extra lockdown-only sites are blocked too. Lockdown is
+silent: nothing shows when it starts or how long it lasts.
 
 **Optional protections (managed).**
 - Close incognito tabs.
@@ -190,9 +191,8 @@ policy format (a configuration profile or a JSON policy file with a
 Wording suitable for the Chrome Web Store privacy form:
 
 - **`tabs`**: Reads the URL of each tab as it navigates, so it can be compared
-  with the block lists and delay sites. Closes blocked tabs, replaces the
-  extensions page when that protection is on, and opens the loop-break page
-  in a new tab.
+  with the block lists and delay sites. Closes blocked tabs, and replaces the
+  extensions page when that protection is on.
 - **`storage`**: Keeps the user's delay sites, sites added in the popup,
   overlay appearance and timers (`storage.sync` / `storage.local`). Reads the
   administrator's configuration from `storage.managed`.
@@ -208,8 +208,9 @@ Wording suitable for the Chrome Web Store privacy form:
   is never read.
 - **`alarms`**: A once-a-minute alarm records time spent on timed delay sites
   and triggers the daily refresh of the domain lists.
-- **`<all_urls>` (host permission)**: The delay overlay and the loop-break dot
-  must work on any site the user chooses, which can't be known in advance. It
+- **`<all_urls>` (host permission)**: The delay overlay must work on any site
+  the user chooses, which can't be known in advance, and the page check reads
+  page titles, descriptions and labels when the administrator enables it. It
   is also used to download the administrator's list URLs and, when enabled,
   archive.org's public item metadata.
 
