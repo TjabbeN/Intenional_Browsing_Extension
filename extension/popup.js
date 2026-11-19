@@ -1,375 +1,449 @@
-document.addEventListener('DOMContentLoaded', function() {
-  const websiteInput = document.getElementById('websiteInput');
-  const delayInput = document.getElementById('delayInput');
-  const delayIncrementInput = document.getElementById('delayIncrementInput');
-  const gracePeriodInput = document.getElementById('gracePeriodInput');
-  const minutesPerIncrementInput = document.getElementById('minutesPerIncrementInput');
-  const addWebsiteButton = document.getElementById('addWebsite');
-  const websiteList = document.getElementById('websiteList');
-  const backgroundImageInput = document.getElementById('backgroundImage');
-  const backgroundColorInput = document.getElementById('backgroundColor');
+// Intentional Browsing: popup.
+//   - Status of the managed configuration (counts only, never entries)
+//   - Mindful delays: list and add (add-only)
+//   - Block a site (add-only, with a confirm step)
+//   - Remote block lists: status and manual update
+//   - Overlay appearance: colour, image, text panel opacity
 
-  // ── Managed configuration status ───────────────────────────────────────
-  // Read directly from chrome.storage.managed so the notice is right even if
-  // the service worker is not running. Only counts are shown, never entries.
-  const managedStatus = document.getElementById('managedStatus');
+'use strict';
 
-  function plural(n, word) {
-    return `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
-  }
+const $ = (id) => document.getElementById(id);
 
-  function renderManagedStatus(cfg) {
-    managedStatus.textContent = '';
-    const title = document.createElement('strong');
-    const detail = document.createElement('div');
+const PRESET_COLOURS = [
+  { color: '#F4F1EA', label: 'Warm white' },
+  { color: '#E8EEF2', label: 'Mist' },
+  { color: '#ECE9F3', label: 'Lavender' },
+  { color: '#2B2F35', label: 'Graphite' },
+  { color: '#2E3B33', label: 'Forest' }
+];
+const DEFAULT_COLOUR = '#E8EEF2';      // the overlay's own default
+const DEFAULT_PANEL_OPACITY = 0.85;
+const MAX_IMAGE_DIMENSION = 3840;      // 4K; larger screens still look sharp
 
-    if (!cfg.present) {
-      managedStatus.className = 'notice missing';
-      title.textContent = 'No managed configuration found.';
-      detail.textContent =
-        'Block lists, exceptions, keywords and protection settings are supplied by an ' +
-        'administrator through enterprise policy. Until then only your delay sites and ' +
-        'the sites you block below are active.';
-    } else {
-      const c = cfg.counts;
-      const keywords = c.keywordsAnywhere + c.keywordsSubstring + c.keywordsSearch +
-                       c.keywordsSoft + c.keywordsFuzzy;
-      const skipped = Object.values(cfg.skipped).reduce((a, b) => a + b, 0);
-      managedStatus.className = 'notice active';
-      title.textContent = 'Managed configuration active.';
-      detail.textContent = [
-        plural(c.blockedSites, 'blocked site'),
-        plural(c.allowedSubdomains + c.allowedPaths, 'exception'),
-        plural(keywords, 'keyword'),
-        plural(c.blocklistUrls, 'remote list')
-      ].join(' · ');
-      if (skipped) {
-        detail.textContent += skipped === 1
-          ? ' (1 malformed entry ignored)'
-          : ` (${skipped} malformed entries ignored)`;
-      }
-    }
-    managedStatus.appendChild(title);
-    managedStatus.appendChild(detail);
-  }
+function plural(n, word) {
+  return `${Number(n).toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+}
 
-  function loadManagedStatus() {
-    let request;
+function sendMessage(message) {
+  return new Promise((resolve) => {
     try {
-      request = chrome.storage.managed.get(null);
+      chrome.runtime.sendMessage(message, (resp) => {
+        void chrome.runtime.lastError;
+        resolve(resp);
+      });
     } catch {
-      request = Promise.resolve({});
+      resolve(undefined);
     }
-    Promise.resolve(request)
-      .catch(() => ({}))
-      .then(raw => renderManagedStatus(parseManagedConfig(raw || {})));
-  }
+  });
+}
 
-  loadManagedStatus();
+// ─── Header and managed status ──────────────────────────────────────────────
+function renderStatus(cfg) {
+  const box = $('status');
+  if (!cfg.present) {
+    box.classList.add('missing');
+    $('statusTitle').textContent = 'No managed configuration';
+    $('statusDetail').textContent = 'Only your delays and blocked sites are active.';
+    return;
+  }
+  box.classList.remove('missing');
+  const c = cfg.counts;
+  const keywords = c.keywordsAnywhere + c.keywordsSubstring + c.keywordsSearch + c.keywordsSoft + c.keywordsFuzzy;
+  let detail = [
+    plural(c.blockedSites, 'site'),
+    plural(keywords, 'keyword'),
+    plural(c.blocklistUrls, 'remote list')
+  ].join(' · ');
+  const skipped = Object.values(cfg.skipped).reduce((a, b) => a + b, 0);
+  if (skipped) detail += skipped === 1 ? ' (1 malformed entry ignored)' : ` (${skipped} malformed entries ignored)`;
+  $('statusTitle').textContent = 'Protection active';
+  $('statusDetail').textContent = detail;
+}
+
+function loadStatus() {
+  // Read directly from managed storage, so the status is right even when the
+  // service worker is not running.
+  let request;
+  try {
+    request = chrome.storage.managed.get(null);
+  } catch {
+    request = Promise.resolve({});
+  }
+  Promise.resolve(request)
+    .catch(() => ({}))
+    .then((raw) => renderStatus(parseManagedConfig(raw || {})));
+}
+
+// ─── Folding sections ───────────────────────────────────────────────────────
+function setupFold(sectionId) {
+  const section = $(sectionId);
+  const toggle = section.querySelector('.fold-toggle');
+  const body = $(toggle.getAttribute('aria-controls'));
+  toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(open));
+    section.classList.toggle('open', open);
+    body.hidden = !open;
+  });
+}
+
+// ─── Mindful delays (add-only) ──────────────────────────────────────────────
+function delayRow(site) {
+  const li = document.createElement('li');
+  const host = document.createElement('span');
+  host.className = 'host';
+  host.textContent = site.url;
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  meta.textContent = `${Number(site.delay) || 0} s · +${Number(site.delayIncrement) || 0} s per visit`;
+  li.append(host, meta);
+  return li;
+}
+
+function renderDelays(websites) {
+  const list = $('delayList');
+  list.textContent = '';
+  for (const site of websites) {
+    if (site && typeof site.url === 'string') list.appendChild(delayRow(site));
+  }
+  list.hidden = list.children.length === 0;
+}
+
+/** Shows the list, resetting delays to their start value once a day first. */
+function loadDelays() {
+  chrome.storage.sync.get(['websites', 'lastResetDate'], (result) => {
+    const websites = Array.isArray(result.websites) ? result.websites : [];
+    const today = new Date().toISOString().split('T')[0];
+    if (result.lastResetDate === today) {
+      renderDelays(websites);
+      return;
+    }
+    const reset = websites.map((site) => {
+      const initialDelay = site.initialDelay !== undefined ? site.initialDelay : site.delay;
+      return { ...site, initialDelay, delay: initialDelay };
+    });
+    chrome.storage.sync.set({ websites: reset, lastResetDate: today }, () => renderDelays(reset));
+  });
+}
+
+function setupDelays() {
+  const form = $('addDelayForm');
+  const openButton = $('openAddDelay');
+  const note = $('delayNote');
+  const NOTE = 'Added sites can’t be removed.';
+
+  openButton.addEventListener('click', () => {
+    form.hidden = false;
+    openButton.hidden = true;
+    $('delaySite').focus();
+  });
+
+  const int = (id) => {
+    const v = parseInt($(id).value, 10);
+    return Number.isFinite(v) && v >= 0 ? v : null;
+  };
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const url = $('delaySite').value.trim();
+    const delay = int('delayStart');
+    const delayIncrement = int('delayStep');
+    if (!url || delay === null || delayIncrement === null) {
+      note.textContent = 'Enter a site, a start delay and the time added per visit.';
+      note.classList.add('danger-text');
+      return;
+    }
+    const newSite = {
+      url,
+      delay,
+      initialDelay: delay,                       // restored by the daily reset
+      delayIncrement,
+      gracePeriod: int('delayGrace') || 0,
+      // Minutes of focused time that earn one extra delayIncrement; 0 = off.
+      minutesPerIncrement: int('delayMinutes') || 0
+    };
+    chrome.storage.sync.get(['websites'], (result) => {
+      const websites = Array.isArray(result.websites) ? result.websites : [];
+      websites.push(newSite);
+      chrome.storage.sync.set({ websites }, () => {
+        form.reset();
+        form.hidden = true;
+        openButton.hidden = false;
+        note.textContent = NOTE;
+        note.classList.remove('danger-text');
+        renderDelays(websites);
+      });
+    });
+  });
+}
+
+// ─── Block a site (add-only) ────────────────────────────────────────────────
+/** The domain the background will store, using the same rules it uses. */
+function previewDomain(raw) {
+  return raw.toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .split('/')[0].split('?')[0].split('#')[0]
+    .split('@').pop().split(':')[0]
+    .replace(/^www\./, '').replace(/\.+$/, '');
+}
+
+async function showBlockedCount() {
+  const resp = await sendMessage({ action: 'getUserBlockedCount' });
+  if (!resp) return;
+  $('blockStatus').textContent = resp.count === 1 ? '1 site blocked by you' : `${resp.count} sites blocked by you`;
+}
+
+function setupBlock() {
+  const input = $('blockSite');
+  const button = $('blockButton');
+  const confirmNote = $('blockConfirmNote');
+  const status = $('blockStatus');
+  // Two steps: entries are permanent, so the normalised domain is shown for
+  // review before it is committed. Guards against typos, not against intent.
+  let pending = null;
+
+  const reset = () => {
+    pending = null;
+    button.textContent = 'Block permanently';
+    button.classList.remove('confirm');
+    confirmNote.hidden = true;
+  };
+  input.addEventListener('input', reset);
+
+  button.addEventListener('click', async () => {
+    const raw = input.value.trim();
+    if (!raw) return;
+    if (pending !== raw) {
+      const domain = previewDomain(raw);
+      if (!domain || !domain.includes('.')) {
+        status.textContent = 'Not a valid domain.';
+        return;
+      }
+      pending = raw;
+      button.textContent = `Confirm: block ${domain}`;
+      button.classList.add('confirm');
+      confirmNote.hidden = false;
+      return;
+    }
+    const resp = await sendMessage({ action: 'addUserBlockedSite', site: raw });
+    reset();
+    if (!resp || !resp.success) {
+      status.textContent = resp && resp.reason === 'invalid' ? 'Not a valid domain.' : 'Could not save.';
+      return;
+    }
+    input.value = '';
+    status.textContent = resp.already ? `${resp.domain} was already blocked.` : `${resp.domain} blocked.`;
+    setTimeout(showBlockedCount, 2500);
+  });
+}
+
+// ─── Remote block lists ─────────────────────────────────────────────────────
+async function showListsStatus() {
+  const resp = await sendMessage({ action: 'getBlocklistStatus' });
+  const meta = $('listsMeta');
+  const button = $('updateLists');
+  if (!resp) return;
+  button.disabled = !resp.configured;
+  if (!resp.configured) {
+    meta.textContent = 'None';
+    return;
+  }
+  let text = plural(resp.configured, 'list');
+  if (resp.failed) text += ` · ${resp.failed} failed`;
+  meta.textContent = text;
+}
+
+function setupLists() {
+  const button = $('updateLists');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'Updating…';
+    const resp = await sendMessage({ action: 'refreshBlocklist' });
+    button.textContent = resp && resp.success ? 'Updated' : 'Update failed';
+    await showListsStatus();
+    setTimeout(() => { button.textContent = 'Update now'; }, 2500);
+  });
+}
+
+// ─── Overlay appearance ─────────────────────────────────────────────────────
+function saveCustomization(changes) {
+  chrome.storage.sync.get(['customization'], (result) => {
+    const customization = { ...(result.customization || {}), ...changes };
+    chrome.storage.sync.set({ customization });
+  });
+}
+
+function setupColours(current) {
+  const group = $('swatches');
+  const custom = $('customColour');
+  const buttons = PRESET_COLOURS.map(({ color, label }) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.style.background = color;
+    b.setAttribute('aria-label', label);
+    b.dataset.color = color.toLowerCase();
+    group.insertBefore(b, custom);
+    return b;
+  });
+
+  const select = (color) => {
+    const c = String(color || DEFAULT_COLOUR).toLowerCase();
+    let matched = false;
+    for (const b of buttons) {
+      const on = b.dataset.color === c;
+      matched = matched || on;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    custom.classList.toggle('selected', !matched);
+    if (!matched && /^#[0-9a-f]{6}$/.test(c)) custom.value = c;
+  };
+
+  for (const b of buttons) {
+    b.addEventListener('click', () => {
+      select(b.dataset.color);
+      saveCustomization({ backgroundColor: b.dataset.color });
+    });
+  }
+  custom.addEventListener('input', () => select(custom.value));
+  custom.addEventListener('change', () => {
+    select(custom.value);
+    saveCustomization({ backgroundColor: custom.value });
+  });
+  select(current);
+}
+
+function setupPanelOpacity(current) {
+  const slider = $('panelOpacity');
+  const value = $('panelValue');
+  const pct = Math.round((Number(current) || DEFAULT_PANEL_OPACITY) * 100);
+  slider.value = String(Math.min(100, Math.max(50, pct)));
+  const show = () => { value.textContent = slider.value + '%'; };
+  show();
+  slider.addEventListener('input', show);
+  slider.addEventListener('change', () => saveCustomization({ panelOpacity: Number(slider.value) / 100 }));
+}
+
+/**
+ * Scales an image down to the screen's real resolution (never up) and encodes
+ * it at high quality. It is stored in storage.local, which has no practical
+ * size limit with the unlimitedStorage permission.
+ */
+function encodeImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode failed'));
+      img.onload = () => {
+        const screenMax = Math.max(screen.width || 0, screen.height || 0) * (window.devicePixelRatio || 1);
+        const limit = Math.min(MAX_IMAGE_DIMENSION, Math.max(1920, Math.round(screenMax)));
+        const scale = Math.min(1, limit / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        // Flatten onto white so transparent images don't turn black.
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const webp = canvas.toDataURL('image/webp', 0.92);
+        resolve(webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.92));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function setupImage() {
+  const row = $('imageRow');
+  const thumb = $('imageThumb');
+  const name = $('imageName');
+  const file = $('imageFile');
+  const choose = $('chooseImage');
+  const error = $('imageError');
+
+  const render = (dataUrl, fileName) => {
+    row.hidden = !dataUrl;
+    if (dataUrl) {
+      thumb.src = dataUrl;
+      name.textContent = fileName || 'Background image';
+      choose.textContent = 'Choose another image';
+    } else {
+      thumb.removeAttribute('src');
+      choose.textContent = 'Choose image';
+    }
+  };
+
+  chrome.storage.local.get(['bgImage', 'bgImageName'], (r) => render(r.bgImage || null, r.bgImageName));
+
+  choose.addEventListener('click', () => file.click());
+  file.addEventListener('change', () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    error.hidden = true;
+    choose.disabled = true;
+    choose.textContent = 'Processing…';
+    encodeImage(f)
+      .then((dataUrl) => new Promise((resolve, reject) => {
+        chrome.storage.local.set({ bgImage: dataUrl, bgImageName: f.name }, () => {
+          if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+          else resolve(dataUrl);
+        });
+      }))
+      .then((dataUrl) => render(dataUrl, f.name))
+      .catch(() => {
+        error.textContent = 'Could not use that image.';
+        error.hidden = false;
+        chrome.storage.local.get(['bgImage', 'bgImageName'], (r) => render(r.bgImage || null, r.bgImageName));
+      })
+      .finally(() => {
+        choose.disabled = false;
+        file.value = '';
+      });
+  });
+
+  $('removeImage').addEventListener('click', () => {
+    chrome.storage.local.remove(['bgImage', 'bgImageName'], () => render(null));
+  });
+}
+
+function setupAppearance() {
+  chrome.storage.sync.get(['customization'], (result) => {
+    const c = result.customization || {};
+    setupColours(c.backgroundColor);
+    setupPanelOpacity(c.panelOpacity);
+  });
+  setupImage();
+}
+
+// ─── Start ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    $('version').textContent = chrome.runtime.getManifest().version.split('.').slice(0, 2).join('.');
+  } catch {}
+
+  loadStatus();
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'managed') {
-      loadManagedStatus();
-      showBlocklistStatus();
+      loadStatus();
+      showListsStatus();
     }
   });
-  // ────────────────────────────────────────────────────────────────────────
 
-  // ── Remote block lists ──────────────────────────────────────────────────
-  const blocklistStatus = document.getElementById('blocklistStatus');
-  const updateBlocklistBtn = document.getElementById('updateBlocklist');
-
-  function showBlocklistStatus() {
-    chrome.runtime.sendMessage({ action: 'getBlocklistStatus' }, (resp) => {
-      void chrome.runtime.lastError;
-      if (!resp) return;
-      updateBlocklistBtn.disabled = !resp.configured;
-      if (!resp.configured) {
-        blocklistStatus.textContent = 'No remote lists configured.';
-      } else if (resp.count > 0) {
-        const d = resp.lastUpdated ? new Date(resp.lastUpdated).toLocaleDateString() : 'unknown';
-        let text = `${resp.count.toLocaleString()} domains blocked, last updated ${d}.`;
-        if (resp.failed) text += ` ${plural(resp.failed, 'list')} failed to load.`;
-        if (resp.truncated) text += ' Size limit reached; some domains were skipped.';
-        blocklistStatus.textContent = text;
-      } else {
-        blocklistStatus.textContent = 'Lists not downloaded yet.';
-      }
-    });
-  }
-  showBlocklistStatus();
-
-  updateBlocklistBtn.addEventListener('click', () => {
-    updateBlocklistBtn.disabled = true;
-    updateBlocklistBtn.textContent = 'Updating…';
-    chrome.runtime.sendMessage({ action: 'refreshBlocklist' }, (resp) => {
-      void chrome.runtime.lastError;
-      updateBlocklistBtn.disabled = false;
-      updateBlocklistBtn.textContent = 'Update Lists Now';
-      if (resp && resp.success) {
-        showBlocklistStatus();
-      } else {
-        blocklistStatus.textContent = 'Update failed. Check the network connection.';
-      }
-    });
-  });
-  // ────────────────────────────────────────────────────────────────────────
-
-  // ── Manual site blocking (add-only) ──────────────────────────────────────
-  const blockSiteInput = document.getElementById('blockSiteInput');
-  const blockSiteButton = document.getElementById('blockSiteButton');
-  const blockSiteStatus = document.getElementById('blockSiteStatus');
-
-  function showBlockedCount() {
-    chrome.runtime.sendMessage({ action: 'getUserBlockedCount' }, (resp) => {
-      void chrome.runtime.lastError;
-      if (!resp) return;
-      blockSiteStatus.textContent = resp.count === 1
-        ? '1 site blocked manually.'
-        : `${resp.count} sites blocked manually.`;
-    });
-  }
+  setupFold('listsFold');
+  setupFold('lookFold');
+  loadDelays();
+  setupDelays();
+  setupBlock();
   showBlockedCount();
-
-  // Two-step confirm: entries are permanent, so the normalised domain is shown
-  // for review before it is committed. Guards against typos, not against intent.
-  let pendingBlock = null;
-  function resetPendingBlock() {
-    pendingBlock = null;
-    blockSiteButton.textContent = 'Block Permanently';
-  }
-
-  blockSiteInput.addEventListener('input', resetPendingBlock);
-
-  blockSiteButton.addEventListener('click', () => {
-    const raw = (blockSiteInput.value || '').trim();
-    if (!raw) return;
-
-    if (pendingBlock !== raw) {
-      // Preview the normalised form using the same rules the background uses.
-      const preview = raw.toLowerCase()
-        .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
-        .split('/')[0].split('?')[0].split('#')[0]
-        .split('@').pop().split(':')[0]
-        .replace(/^www\./, '').replace(/\.+$/, '');
-      if (!preview || !preview.includes('.')) {
-        blockSiteStatus.textContent = 'Not a valid domain.';
-        return;
-      }
-      pendingBlock = raw;
-      blockSiteButton.textContent = `Confirm: block ${preview}`;
-      blockSiteStatus.textContent = 'Click again to confirm. This cannot be undone here.';
-      return;
-    }
-
-    chrome.runtime.sendMessage({ action: 'addUserBlockedSite', site: raw }, (resp) => {
-      void chrome.runtime.lastError;
-      resetPendingBlock();
-      if (!resp || !resp.success) {
-        blockSiteStatus.textContent =
-          resp && resp.reason === 'invalid' ? 'Not a valid domain.' : 'Could not save.';
-        return;
-      }
-      blockSiteInput.value = '';
-      blockSiteStatus.textContent = resp.already
-        ? `${resp.domain} was already blocked.`
-        : `${resp.domain} blocked. Active now.`;
-    });
-  });
-  // ────────────────────────────────────────────────────────────────────────
-
-  // ── Loop-break page ─────────────────────────────────────────────────────
-  const loopBreakUrlInput = document.getElementById('loopBreakUrl');
-  const saveLoopBreakUrlBtn = document.getElementById('saveLoopBreakUrl');
-  const loopBreakStatus = document.getElementById('loopBreakStatus');
-
-  chrome.storage.sync.get(['loopBreakUrl'], (result) => {
-    if (result.loopBreakUrl) {
-      loopBreakUrlInput.value = result.loopBreakUrl;
-      loopBreakStatus.textContent = 'Saved.';
-    } else {
-      loopBreakStatus.textContent = 'Not set.';
-    }
-  });
-
-  saveLoopBreakUrlBtn.addEventListener('click', () => {
-    const url = (loopBreakUrlInput.value || '').trim();
-    if (url && !/^https?:\/\//i.test(url)) {
-      loopBreakStatus.textContent = 'URL must start with http(s)://';
-      return;
-    }
-    chrome.storage.sync.set({ loopBreakUrl: url }, () => {
-      loopBreakStatus.textContent = url ? 'Saved.' : 'Cleared.';
-    });
-  });
-  // ────────────────────────────────────────────────────────────────────────
-
-  // ── Delay sites ─────────────────────────────────────────────────────────
-  loadWebsitesAndCheckReset();
-
-  addWebsiteButton.addEventListener('click', function() {
-    const website = websiteInput.value.trim();
-    const delay = delayInput.value;
-    const delayIncrement = delayIncrementInput.value;
-    const gracePeriod = gracePeriodInput.value || 0;
-    const minutesPerIncrement = minutesPerIncrementInput.value || 0;
-
-    if (website && delay && delayIncrement) {
-      const newSite = {
-        url: website,
-        delay: parseInt(delay),
-        initialDelay: parseInt(delay),   // restored by the daily reset
-        delayIncrement: parseInt(delayIncrement),
-        gracePeriod: parseInt(gracePeriod),
-        // Minutes of focused time that earn one extra delayIncrement.
-        // 0 disables time charging (per-visit increments only).
-        minutesPerIncrement: parseInt(minutesPerIncrement)
-      };
-
-      chrome.storage.sync.get(['websites'], function(result) {
-        const websites = result.websites || [];
-        websites.push(newSite);
-
-        chrome.storage.sync.set({ websites: websites }, function() {
-          websiteInput.value = '';
-          delayInput.value = '';
-          delayIncrementInput.value = '';
-          gracePeriodInput.value = '';
-          minutesPerIncrementInput.value = '';
-          loadWebsitesAndCheckReset();
-        });
-      });
-    }
-  });
-
-  // ── Background image ─────────────────────────────────────────────────────
-  // Stored in chrome.storage.local, not sync: sync caps one item at 8 KB, far
-  // below any real image. The image is downscaled and re-encoded first.
-  const backgroundImageStatus = document.getElementById('backgroundImageStatus');
-  const backgroundImagePreview = document.getElementById('backgroundImagePreview');
-  const clearBackgroundImageBtn = document.getElementById('clearBackgroundImage');
-
-  const MAX_IMAGE_DIMENSION = 1600;
-
-  function renderImageState(dataUrl) {
-    if (dataUrl) {
-      backgroundImagePreview.src = dataUrl;
-      backgroundImagePreview.style.display = 'block';
-      clearBackgroundImageBtn.style.display = 'block';
-      const kb = Math.round((dataUrl.length * 3 / 4) / 1024);
-      backgroundImageStatus.textContent = `Image saved (~${kb} KB).`;
-    } else {
-      backgroundImagePreview.removeAttribute('src');
-      backgroundImagePreview.style.display = 'none';
-      clearBackgroundImageBtn.style.display = 'none';
-      backgroundImageStatus.textContent = 'No image set.';
-    }
-  }
-
-  chrome.storage.local.get(['bgImage'], (r) => renderImageState(r.bgImage || null));
-
-  function downscaleToDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error('read failed'));
-      reader.onloadend = () => {
-        const img = new Image();
-        img.onerror = () => reject(new Error('decode failed'));
-        img.onload = () => {
-          let { width, height } = img;
-          const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(width, height));
-          width = Math.max(1, Math.round(width * scale));
-          height = Math.max(1, Math.round(height * scale));
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          // Flatten onto white so transparent PNGs don't turn black as JPEG.
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.82));
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  backgroundImageInput.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    backgroundImageStatus.textContent = 'Processing…';
-
-    downscaleToDataUrl(file).then((dataUrl) => {
-      chrome.storage.local.set({ bgImage: dataUrl }, () => {
-        if (chrome.runtime.lastError) {
-          backgroundImageStatus.textContent = 'Could not save: ' + chrome.runtime.lastError.message;
-          return;
-        }
-        renderImageState(dataUrl);
-      });
-    }).catch(() => {
-      backgroundImageStatus.textContent = 'Could not read that image file.';
-    });
-  });
-
-  clearBackgroundImageBtn.addEventListener('click', () => {
-    chrome.storage.local.remove('bgImage', () => {
-      backgroundImageInput.value = '';
-      renderImageState(null);
-    });
-  });
-  // ────────────────────────────────────────────────────────────────────────
-
-  backgroundColorInput.addEventListener('change', function(e) {
-    const color = e.target.value;
-    chrome.storage.sync.get(['customization'], function(result) {
-      const customization = result.customization || {};
-      customization.backgroundColor = color;
-      chrome.storage.sync.set({ customization: customization });
-    });
-  });
-
-  function addWebsiteToList(site) {
-    const siteElement = document.createElement('div');
-    siteElement.style.marginBottom = '5px';
-    siteElement.style.padding = '5px';
-    siteElement.style.border = '1px solid #ddd';
-    siteElement.style.borderRadius = '4px';
-
-    const mpi = Number(site.minutesPerIncrement) || 0;
-    const timeCharge = mpi > 0 ? `, Time: +${site.delayIncrement}s/${mpi}min` : '';
-    siteElement.textContent = `${site.url} (Delay: ${site.delay}s, Increase: ${site.delayIncrement}s, Grace: ${site.gracePeriod || 0}s${timeCharge})`;
-    websiteList.appendChild(siteElement);
-  }
-
-  function loadWebsitesAndCheckReset() {
-    websiteList.innerHTML = '';
-
-    chrome.storage.sync.get(['websites', 'customization', 'lastResetDate'], function(result) {
-      const websites = result.websites || [];
-      const customization = result.customization || {};
-
-      // Daily reset (the background does the same on navigation).
-      const currentDate = new Date().toISOString().split('T')[0];
-      const lastResetDate = result.lastResetDate || '';
-
-      if (lastResetDate !== currentDate) {
-        const resetWebsites = websites.map(site => {
-          const initialDelay = site.initialDelay !== undefined ? site.initialDelay : site.delay;
-          return { ...site, initialDelay, delay: initialDelay };
-        });
-        chrome.storage.sync.set({ websites: resetWebsites, lastResetDate: currentDate }, function() {
-          resetWebsites.forEach(addWebsiteToList);
-        });
-      } else {
-        websites.forEach(addWebsiteToList);
-      }
-
-      if (customization.backgroundColor) {
-        backgroundColorInput.value = customization.backgroundColor;
-      }
-    });
-  }
+  setupLists();
+  showListsStatus();
+  setupAppearance();
 });

@@ -1,106 +1,278 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Intentional Browsing Settings</title>
+  <title>Intentional Browsing</title>
   <style>
+    :root {
+      --text: #1C1D1F;
+      --muted: #5F636B;
+      --label: #4A4E55;
+      --line: #ECECE8;
+      --field: #D6D6D0;
+      --accent: #3D5A80;
+      --danger: #9B2C2C;
+      --danger-line: #E3C4C2;
+      font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; }
     body {
-      width: 300px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
+      width: 360px;
+      margin: 0;
+      background: #FFFFFF;
+      color: var(--text);
+      font-size: 13px;
     }
-    input, button {
-      margin: 5px 0;
+    [hidden] { display: none !important; }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 20px 14px;
+    }
+    h1 { margin: 0; font-size: 15px; font-weight: 600; flex-grow: 1; }
+    h2 { margin: 0; font-size: 13px; font-weight: 600; }
+    .version { font-size: 12px; color: var(--muted); }
+    .status {
+      margin: 0 16px 12px;
+      padding: 12px 14px;
+      background: #F3F5F7;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .status-title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #2F7D4F; flex-shrink: 0; }
+    .status.missing .dot { background: #B7791F; }
+    .small { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .danger-text { color: var(--danger); }
+    section {
+      padding: 16px 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    section.fold { padding-top: 6px; padding-bottom: 6px; }
+    section.fold.open { padding-bottom: 18px; }
+    .fold-toggle {
       width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0;
+      border: none;
+      background: none;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      text-align: left;
     }
-    #websiteList {
-      max-height: 200px;
-      overflow-y: auto;
+    .fold-toggle .title { font-weight: 600; flex-grow: 1; }
+    .fold-toggle .meta { font-size: 12px; color: var(--muted); }
+    .fold-toggle svg { transition: transform 0.15s; }
+    .fold.open .fold-toggle svg { transform: rotate(180deg); }
+    .fold-body { display: flex; flex-direction: column; gap: 16px; }
+    ul.sites { margin: 0; padding: 0; list-style: none; }
+    ul.sites li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid #F0F0EC;
     }
-    .hint {
-      font-size: 11px;
-      color: #666;
+    ul.sites li .host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    ul.sites li .meta { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      background: #F7F7F5;
+      border-radius: 10px;
     }
-    .notice {
-      font-size: 12px;
-      line-height: 1.4;
-      padding: 8px 10px;
-      border-radius: 4px;
-      margin-bottom: 8px;
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    label, .label { font-size: 12px; font-weight: 500; color: var(--label); }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--field);
+      border-radius: 8px;
+      background: #FFFFFF;
+      font: inherit;
+      color: var(--text);
     }
-    .notice.missing {
-      background: #fff4e5;
-      border: 1px solid #f0c27b;
-      color: #5c3b00;
+    input::placeholder { color: #6B6F76; }
+    .button {
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--field);
+      background: #FFFFFF;
+      color: var(--text);
     }
-    .notice.active {
-      background: #eef6ee;
-      border: 1px solid #b7d8b7;
-      color: #1f4d1f;
+    .button:disabled { opacity: 0.5; cursor: default; }
+    .button.primary { border: none; background: var(--accent); color: #FFFFFF; }
+    .button.danger { border-color: var(--danger-line); color: var(--danger); }
+    .button.danger.confirm { border: none; background: var(--danger); color: #FFFFFF; }
+    .link {
+      min-height: 44px;
+      padding: 0 4px;
+      border: none;
+      background: none;
+      font: inherit;
+      font-weight: 500;
+      color: var(--accent);
+      cursor: pointer;
     }
-    .notice strong {
-      display: block;
-      margin-bottom: 2px;
+    button:focus-visible, input:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+    .swatch {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--field);
+      padding: 0;
+      cursor: pointer;
+    }
+    .swatch.selected { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px var(--accent); }
+    input[type="color"].swatch { background: none; padding: 2px; overflow: hidden; border: 1px dashed #8A8E96; }
+    input[type="color"].swatch::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type="color"].swatch::-webkit-color-swatch { border: none; border-radius: 50%; }
+    .image-row { display: flex; align-items: center; gap: 12px; }
+    .thumb {
+      width: 64px;
+      height: 40px;
+      border-radius: 6px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: #E6E6E1;
+    }
+    .image-name { flex-grow: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row-between { display: flex; justify-content: space-between; align-items: baseline; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
     }
   </style>
 </head>
 <body>
-  <h2>Intentional Browsing Settings</h2>
+  <header>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3D5A80" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="#3D5A80" stroke="none"></circle>
+    </svg>
+    <h1>Intentional Browsing</h1>
+    <span class="version" id="version"></span>
+  </header>
 
-  <div id="managedStatus" class="notice"></div>
-
-  <div>
-    <h3>Add Website</h3>
-    <input type="text" id="websiteInput" placeholder="Enter website URL">
-    <input type="number" id="delayInput" placeholder="Initial Delay in seconds" min="0">
-    <input type="number" id="delayIncrementInput" placeholder="Delay Increase (s)" min="0">
-    <input type="number" id="gracePeriodInput" placeholder="Grace Period (s, optional)" min="0">
-    <input type="number" id="minutesPerIncrementInput"
-           placeholder="Time charge: min watched per increase (0 = off)" min="0">
-    <button id="addWebsite">Add Website</button>
+  <div class="status" id="status">
+    <div class="status-title"><span class="dot" aria-hidden="true"></span><span id="statusTitle"></span></div>
+    <p class="small" id="statusDetail"></p>
   </div>
 
-  <div>
-    <h3>Configured Websites</h3>
-    <div id="websiteList"></div>
-  </div>
+  <section aria-labelledby="delaysTitle">
+    <h2 id="delaysTitle">Mindful delays</h2>
+    <ul class="sites" id="delayList"></ul>
+    <button type="button" class="button" id="openAddDelay">Add a site</button>
+    <form class="form" id="addDelayForm" hidden>
+      <div class="field">
+        <label for="delaySite">Site</label>
+        <input type="text" id="delaySite" placeholder="example.com" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="delayStart">Start delay (s)</label>
+          <input type="number" id="delayStart" placeholder="10" min="0">
+        </div>
+        <div class="field">
+          <label for="delayStep">Added per visit (s)</label>
+          <input type="number" id="delayStep" placeholder="5" min="0">
+        </div>
+        <div class="field">
+          <label for="delayGrace">Grace period (s)</label>
+          <input type="number" id="delayGrace" placeholder="Optional" min="0">
+        </div>
+        <div class="field">
+          <label for="delayMinutes">Minutes per step</label>
+          <input type="number" id="delayMinutes" placeholder="0 = off" min="0">
+        </div>
+      </div>
+      <button type="submit" class="button primary">Add delay</button>
+      <p class="small" id="delayNote">Added sites can’t be removed.</p>
+    </form>
+  </section>
 
-  <div>
-    <h3>Remote Block Lists</h3>
-    <div id="blocklistStatus" class="hint" style="margin-bottom:6px;"></div>
-    <button id="updateBlocklist">Update Lists Now</button>
-  </div>
-
-  <div>
-    <h3>Block a Site</h3>
-    <div class="hint" style="margin-bottom:6px;">
-      Blocks the domain and all its subdomains, immediately. Permanent.
+  <section aria-labelledby="blockTitle">
+    <h2 id="blockTitle">Block a site</h2>
+    <p class="small">Permanent. Blocked sites can’t be removed.</p>
+    <div class="field">
+      <label for="blockSite">Domain</label>
+      <input type="text" id="blockSite" placeholder="example.com" autocomplete="off" spellcheck="false">
     </div>
-    <input type="text" id="blockSiteInput" placeholder="example.com">
-    <button id="blockSiteButton">Block Permanently</button>
-    <div id="blockSiteStatus" class="hint"></div>
-  </div>
+    <button type="button" class="button danger" id="blockButton">Block permanently</button>
+    <p class="small danger-text" id="blockConfirmNote" hidden>Click again to confirm. This can’t be undone.</p>
+    <p class="small" id="blockStatus"></p>
+  </section>
 
-  <div>
-    <h3>Loop-Break Page</h3>
-    <div class="hint" style="margin-bottom:6px;">
-      A page to open when you click the small dot in the corner of every page,
-      or the button on the locked page: a journal, a chat, a support resource.
+  <section class="fold" id="listsFold">
+    <button type="button" class="fold-toggle" aria-expanded="false" aria-controls="listsBody">
+      <span class="title">Remote block lists</span>
+      <span class="meta" id="listsMeta"></span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F636B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div class="fold-body" id="listsBody" hidden>
+      <button type="button" class="button" id="updateLists">Update now</button>
     </div>
-    <input type="text" id="loopBreakUrl" placeholder="https://…">
-    <button id="saveLoopBreakUrl">Save</button>
-    <div id="loopBreakStatus" class="hint"></div>
-  </div>
+  </section>
 
-  <div>
-    <h3>Customization</h3>
-    <input type="file" id="backgroundImage" accept="image/*">
-    <div id="backgroundImageStatus" class="hint"></div>
-    <img id="backgroundImagePreview" alt="" style="display:none; width:100%; max-height:90px;
-         object-fit:cover; border-radius:4px; margin:4px 0;">
-    <button id="clearBackgroundImage" style="display:none;">Remove Image</button>
-    <input type="color" id="backgroundColor" value="#f0f0f0">
-  </div>
+  <section class="fold" id="lookFold">
+    <button type="button" class="fold-toggle" aria-expanded="false" aria-controls="lookBody">
+      <span class="title">Overlay appearance</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5F636B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+    </button>
+    <div class="fold-body" id="lookBody" hidden>
+      <div class="field">
+        <span class="label" id="colourLabel">Background colour</span>
+        <div class="swatches" id="swatches" role="group" aria-labelledby="colourLabel">
+          <input type="color" class="swatch" id="customColour" aria-label="Custom colour" value="#C9D6CF">
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Background image</span>
+        <div class="image-row" id="imageRow" hidden>
+          <img class="thumb" id="imageThumb" alt="Chosen background image">
+          <span class="image-name" id="imageName"></span>
+          <button type="button" class="link" id="removeImage">Remove</button>
+        </div>
+        <input type="file" id="imageFile" accept="image/*" class="visually-hidden" tabindex="-1" aria-hidden="true">
+        <button type="button" class="button" id="chooseImage">Choose image</button>
+        <p class="small danger-text" id="imageError" hidden></p>
+      </div>
+      <div class="field">
+        <div class="row-between">
+          <label for="panelOpacity">Text panel opacity</label>
+          <span class="small" id="panelValue"></span>
+        </div>
+        <input type="range" id="panelOpacity" min="50" max="100" step="5" value="85">
+      </div>
+    </div>
+  </section>
 
   <script src="managed-config.js"></script>
   <script src="popup.js"></script>
