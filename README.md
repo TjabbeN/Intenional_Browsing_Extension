@@ -223,6 +223,11 @@ Intentional Browsing does not collect, sell or transmit personal data.
 
 - All processing happens in the browser. Tab URLs are compared with local
   lists and are never sent anywhere.
+- Only when the administrator enables `pageCheck`: the tab title, the page's
+  description tags and its adult-content labels are read and compared with
+  the same local lists. They are not stored and never leave the browser.
+- An overlay background image you choose is stored in the browser's local
+  extension storage only.
 - Settings and timers are stored in the browser's extension storage. Settings
   in `storage.sync` travel with the user's own browser sync account, if sync
   is on.
