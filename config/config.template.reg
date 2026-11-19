@@ -1,0 +1,69 @@
+Windows Registry Editor Version 5.00
+
+; Intentional Browsing: managed configuration template (Vivaldi).
+;
+; 1. Copy this file outside the repository, for example to my-config.reg.
+;    Personal .reg files are ignored by git; keep it that way.
+; 2. Replace every <EXTENSION-ID> with the extension ID shown on
+;    vivaldi://policy or vivaldi://extensions. The unpacked build and the
+;    Web Store build have different IDs.
+; 3. Replace the example values. List values must be numbered 1, 2, 3 ...
+;    with no gaps. Delete any section you don't use.
+; 4. Import as administrator:  reg import my-config.reg
+;    Then check vivaldi://policy: the values are listed under the extension.
+;
+; For Chrome use SOFTWARE\Policies\Google\Chrome, for Edge
+; SOFTWARE\Policies\Microsoft\Edge in place of SOFTWARE\Policies\Vivaldi.
+;
+; The first key line deletes the previous configuration, so entries removed
+; from your file do not linger.
+
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy]
+"closeIncognitoTabs"=dword:00000000
+"blockExtensionsPage"=dword:00000000
+"scrubHistory"=dword:00000001
+"archiveOrgCheck"=dword:00000000
+"pageCheck"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\blockedSites]
+"1"="example.com"
+"2"="example.org/path"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\allowedSubdomains]
+"1"="docs.example.com"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\allowedPaths]
+"1"="example.com/help"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\keywordsAnywhere]
+"1"="examplekeyword"
+"2"="example phrase"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\keywordsSubstring]
+"1"="examplesubstring"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\keywordsSearch]
+"1"="example search"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\keywordsSoft]
+"1"="example soft"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\keywordsFuzzy]
+"1"="examplekeyword"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\fuzzyIgnoreWords]
+"1"="exampleword"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\blocklistUrls]
+"1"="https://lists.example.com/domains.txt"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\lockdownExtraSites]
+"1"="search.example.com"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\translationHosts]
+"1"="translate.example.com"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Vivaldi\3rdparty\extensions\<EXTENSION-ID>\policy\archiveOrgTerms]
+"1"="exampleterm"

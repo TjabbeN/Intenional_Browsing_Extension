@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Locked</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #1a1a1a;
+      color: #d0d0d0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      box-sizing: border-box;
+    }
+    .msg {
+      font-size: 18px;
+      max-width: 480px;
+      text-align: center;
+      line-height: 1.5;
+      margin-bottom: 32px;
+      opacity: 0.85;
+    }
+    button {
+      background: #2a3a4a;
+      color: #d0d0d0;
+      border: 1px solid #3a4a5a;
+      padding: 14px 28px;
+      font-size: 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s ease;
+    }
+    button:hover { background: #344656; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .hint {
+      margin-top: 20px;
+      font-size: 12px;
+      opacity: 0.5;
+      text-align: center;
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="msg">This page is locked.</div>
+    <button id="talkBtn">Talk it out</button>
+    <div class="hint" id="hint"></div>
+  </div>
+  <script src="extension-block.js"></script>
+</body>
+</html>

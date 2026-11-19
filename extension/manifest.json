@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "Intentional Browsing Extension",
+    "version": "2.2.0",
+    "description": "Adds a mindful pause before distracting sites, and blocks sites from lists your administrator manages.",
+    "permissions": [
+        "storage",
+        "unlimitedStorage",
+        "tabs",
+        "scripting",
+        "history",
+        "alarms"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "storage": {
+        "managed_schema": "schema.json"
+    },
+    "icons": {
+        "16": "images/icon16.png",
+        "48": "images/icon48.png",
+        "128": "images/icon128.png"
+    },
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "images/icon16.png",
+            "48": "images/icon48.png",
+            "128": "images/icon128.png"
+        }
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        }
+    ],
+    "incognito": "spanning"
+}

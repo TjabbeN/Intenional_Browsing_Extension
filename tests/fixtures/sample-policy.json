@@ -1,0 +1,25 @@
+{
+  "scrubHistory": true,
+  "blockedSites": ["blocked.example", "example.org/blocked-path"],
+  "allowedSubdomains": ["allowed.blocked.example"],
+  "allowedPaths": ["forum.example/r/allowed/"],
+  "keywordsAnywhere": [
+    "porn", "nude", "nsfw", "n s f w", "n sfw", "ns fw", "nsf w", "hentai", "xxx",
+    "erotic", "boobs", "titties", "cum", "Debbie_Does_Dallas"
+  ],
+  "keywordsSubstring": ["gonewild", "intercourse", "nsfw"],
+  "keywordsSearch": [
+    "browser", "new browser", "nieuwe browser", "search engine", "zoekmachine", "webbrowser",
+    "incognito", "unblock", "vpn", "sex", "scroller", "privé browser", "prive browser"
+  ],
+  "keywordsSoft": ["dating", "girls", "ass"],
+  "keywordsFuzzy": [
+    "browser", "webbrowser", "search engine", "zoekmachine", "incognito", "unblock", "unblocked",
+    "bypass", "proxies", "scroller", "hentai", "pornography"
+  ],
+  "fuzzyIgnoreWords": [
+    "browse", "browsed", "browses", "bowser", "unlock", "unlocks", "unlocked", "scrolled",
+    "stroller", "proxied", "browner", "sunblock", "sonography", "phonography", "monography",
+    "orography", "maturation"
+  ]
+}
