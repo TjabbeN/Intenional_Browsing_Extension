@@ -159,17 +159,40 @@ function isLockdownExtraBlocked(url) {
 // typos) live in managed-config.js.
 const SEARCH_QUERY_PARAMS = ['q', 'query', 'search', 'search_query', 'p', 'wd', 'text', 's', 'term', 'keyword', 'k', 'kw', 'oq'];
 
+// Tag, topic and explore pages are searches under another name
+// (/explore/<term>, /tag/<term>): the path segment after one of these is
+// treated like a search parameter.
+const SEARCH_PATH_SEGMENTS = new Set([
+  'search', 'explore', 'discover', 'tag', 'tags', 'tagged', 'hashtag', 'hashtags', 'topic', 'topics'
+]);
+
 function isTranslationHost(hostname) {
   return hostInSet(canonicalizeHost(normalizeHost(hostname)), config.translationHosts);
 }
 
-/** Search-parameter values; on translation sites also the fragment and every parameter. */
+/** The path segments that follow a search-like segment ("/explore/<term>"). */
+function searchPathTerms(pathname) {
+  const segments = pathname.split('/').filter(Boolean);
+  const terms = [];
+  for (let i = 0; i + 1 < segments.length; i++) {
+    let s = segments[i];
+    try { s = decodeURIComponent(s); } catch {}
+    if (SEARCH_PATH_SEGMENTS.has(s.toLowerCase())) terms.push(segments[i + 1]);
+  }
+  return terms;
+}
+
+/**
+ * Search-parameter values and search-like path segments; on translation sites
+ * also the fragment and every parameter.
+ */
 function searchTexts(u, includeTranslation) {
   const texts = [];
   for (const param of SEARCH_QUERY_PARAMS) {
     const v = u.searchParams.get(param);
     if (v) texts.push(v);
   }
+  texts.push(...searchPathTerms(u.pathname));
   if (includeTranslation && isTranslationHost(u.hostname)) {
     if (u.hash) texts.push(u.hash);
     for (const [, v] of u.searchParams) {
@@ -621,15 +644,73 @@ function closeAndScrub(tabId, url) {
   removeTab(tabId);
 }
 
+// Tabs already being closed for a block. Several events can arrive for one
+// tab before it is gone (URL, title, page signals); the block counts once.
+const closingTabs = new Set();
+
+/** Closes a tab for a block: counts it toward lockdown once and scrubs history. */
+function closeBlockedTab(tabId, url, reason) {
+  if (closingTabs.has(tabId)) return;
+  closingTabs.add(tabId);
+  debug('Closing tab', tabId, 'reason:', reason);
+  recordSpiralEvent(POINTS_HARD_CLOSE);
+  closeAndScrub(tabId, url);
+}
+
 /** Closes the tab if its URL is blocked. Returns true when it was closed. */
 function enforceBlocksOnTab(tabId, rawUrl) {
   if (!rawUrl) return false;
   const reason = blockReason(rawUrl);
   if (!reason) return false;
-  debug('Closing tab', tabId, 'reason:', reason);
-  recordSpiralEvent(POINTS_HARD_CLOSE);
-  closeAndScrub(tabId, rawUrl);
+  closeBlockedTab(tabId, rawUrl, reason);
   return true;
+}
+
+// ─── Page check (pageCheck) ─────────────────────────────────────────────────
+// Besides the URL, two things a page says about itself are checked:
+//   - adult-content labels sites put in their own page code (reported by
+//     the content script); these close the tab on their own
+//   - the tab title and the page description, matched against
+//     keywordsAnywhere and keywordsSubstring like a URL is
+// Explicitly allowed destinations are exempt, as they are from keywords.
+
+/** True when the page check applies to this tab URL. */
+function pageCheckApplies(url) {
+  if (!config.pageCheck || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+  const chain = unwrapChain(url);
+  return !isExplicitlyAllowed(chain[chain.length - 1]);
+}
+
+/** The keyword found in a page's title or description texts, or ''. */
+function pageTextTrigger(texts) {
+  const { keywordsAnywhere, keywordsSubstring } = config;
+  for (const t of texts) {
+    if (typeof t !== 'string' || !t.trim()) continue;
+    const text = prepareText(t.slice(0, 2000));
+    const hit = matchWordKeywords(text, keywordsAnywhere) || matchSubstringKeywords(text, keywordsSubstring);
+    if (hit) return hit;
+  }
+  return '';
+}
+
+/** Checks a tab's title. Returns true when the tab was closed. */
+function enforcePageTitle(tabId, url, title) {
+  if (!title || !pageCheckApplies(url)) return false;
+  const hit = pageTextTrigger([title]);
+  if (!hit) return false;
+  closeBlockedTab(tabId, url, 'page title: ' + hit);
+  return true;
+}
+
+/** Checks what the content script found in the page head. */
+function enforcePageSignals(tab, signals) {
+  if (!tab || !signals || !pageCheckApplies(tab.url)) return;
+  if (signals.adultLabel) {
+    closeBlockedTab(tab.id, tab.url, 'adult-content label');
+    return;
+  }
+  const hit = pageTextTrigger(Array.isArray(signals.texts) ? signals.texts : []);
+  if (hit) closeBlockedTab(tab.id, tab.url, 'page description: ' + hit);
 }
 
 // ─── archive.org flagged-item check (archiveOrgCheck) ───────────────────────
@@ -683,6 +764,7 @@ async function checkArchiveItem(tabId, url) {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   archiveCheckedTabs.delete(tabId);
+  closingTabs.delete(tabId);
 });
 
 // ─── Delay sites and focused-time charging ──────────────────────────────────
@@ -855,6 +937,9 @@ async function handleTabUpdated(tabId, changeInfo, tab) {
     removeTab(tabId);
     return;
   }
+  // Titles arrive separately from URL changes, and change again in
+  // single-page apps.
+  if (changeInfo.title && enforcePageTitle(tabId, tab.url, changeInfo.title)) return;
   if (!changeInfo.url && changeInfo.status !== 'complete') return;
   await ensureRemoteDomains();
 
@@ -874,6 +959,7 @@ async function handleTabUpdated(tabId, changeInfo, tab) {
   }
 
   if (enforceBlocksOnTab(tabId, tab.url)) return;
+  if (enforcePageTitle(tabId, tab.url, tab.title)) return;
   checkArchiveItem(tabId, tab.url);
   checkForDailyReset().catch(() => {});
 
@@ -936,7 +1022,14 @@ const MESSAGE_HANDLERS = {
   // Asked by the content script on archive.org item pages.
   getContentSettings: (request, sender) => ({
     archiveScan: config.archiveOrgCheck && !isExplicitlyAllowed(sender.url || ''),
+    pageCheck: !!(sender.tab && pageCheckApplies(sender.tab.url))
   }),
+
+  // Sent by the content script in the top frame when pageCheck is on.
+  pageSignals: (request, sender) => {
+    if (sender.tab && sender.frameId === 0) enforcePageSignals(sender.tab, request.signals);
+    return {};
+  },
 
   spiralEvent: (request) => {
     if (request.kind === 'wrongPuzzle') recordSpiralEvent(POINTS_WRONG_PUZZLE);

@@ -2,6 +2,8 @@
 //   - Delay overlay: visible-time countdown, reason or puzzle, grace period
 //   - Loop-break dot: opens the configured loop-break page
 //   - archive.org item scan (only when the administrator enables it)
+//   - Page check: adult labels and descriptions (only when the administrator
+//     enables it)
 
 (() => {
   // The background re-injects this file into tabs that were open before the
@@ -53,14 +55,70 @@
     else document.addEventListener('DOMContentLoaded', startObserver, { once: true });
   }
 
+  // ─── Page check (only when the administrator enables pageCheck) ───────────
+  // Reports what the page says about itself in its <head>: adult-content
+  // labels, and its description texts. The background does the matching, with
+  // the same keyword lists and exceptions as for URLs; the tab title is
+  // checked there directly.
+  const RTA_LABEL = 'rta-5042-1996-1400-1577-rta';
+  const ADULT_RATING_RE = /\b(?:adult|mature|explicit|restricted)\b/;
+  const DESCRIPTION_KEYS = new Set([
+    'description', 'og:title', 'og:description', 'twitter:title', 'twitter:description'
+  ]);
+
+  function collectPageSignals() {
+    let adultLabel = false;
+    const texts = [];
+    for (const m of document.querySelectorAll('meta')) {
+      const key = (m.getAttribute('name') || m.getAttribute('property') ||
+                   m.getAttribute('http-equiv') || '').trim().toLowerCase();
+      const content = (m.getAttribute('content') || '').trim();
+      if (!content) continue;
+      const lower = content.toLowerCase();
+      // The RTA label counts wherever it appears; "rating" values by name.
+      if (lower.includes(RTA_LABEL) || (key === 'rating' && ADULT_RATING_RE.test(lower))) {
+        adultLabel = true;
+      }
+      if (DESCRIPTION_KEYS.has(key)) texts.push(content.slice(0, 2000));
+    }
+    return { adultLabel, texts };
+  }
+
+  function startPageCheck() {
+    let lastSent = '';
+    const report = () => {
+      const signals = collectPageSignals();
+      const key = JSON.stringify(signals);
+      if (key === lastSent) return;
+      lastSent = key;
+      try {
+        chrome.runtime.sendMessage({ action: 'pageSignals', signals }, () => { void chrome.runtime.lastError; });
+      } catch {}
+    };
+    report();
+    // Single-page apps rewrite <head> on navigation: check again, at most
+    // twice a second.
+    let timer = null;
+    const obs = new MutationObserver(() => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; report(); }, 500);
+    });
+    const head = document.head || document.documentElement;
+    try {
+      obs.observe(head, { childList: true, subtree: true, attributes: true, attributeFilter: ['content'] });
+    } catch {}
+  }
+
   const onArchiveItemPage =
     (location.hostname === 'archive.org' || location.hostname.endsWith('.archive.org')) &&
     /^\/details\//.test(location.pathname);
-  if (onArchiveItemPage) {
+  if (/^https?:$/.test(location.protocol)) {
     try {
       chrome.runtime.sendMessage({ action: 'getContentSettings' }, (settings) => {
         void chrome.runtime.lastError;
-        if (settings && settings.archiveScan) archiveFlagScan();
+        if (!settings) return;
+        if (settings.archiveScan && onArchiveItemPage) archiveFlagScan();
+        if (settings.pageCheck) startPageCheck();
       });
     } catch {}
   }

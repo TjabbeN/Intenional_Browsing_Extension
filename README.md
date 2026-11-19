@@ -61,6 +61,7 @@ one click.
 - Replace the extensions page with a locked page.
 - Remove blocked pages from history.
 - Close flagged archive.org items.
+- Check pages by their adult-content labels, tab title and description.
 
 When no managed configuration is present, only the delay sites and the sites
 added in the popup are active. The popup then shows "No managed configuration
@@ -80,7 +81,7 @@ Changes apply immediately, without a browser restart.
 | `allowedPaths` | array | `host/path` prefixes that stay allowed on a blocked domain (subdomains of the host included). | `["example.com/help"]` |
 | `keywordsAnywhere` | array | Whole words or phrases anywhere in the URL. Anything that is not a letter or digit counts as a space. | `["examplekeyword", "example phrase"]` |
 | `keywordsSubstring` | array | Plain substrings anywhere in the URL, also inside longer words. | `["examplesubstring"]` |
-| `keywordsSearch` | array | Whole words or phrases inside search parameters (`q`, `query`, `search`, `search_query`, `p`, `wd`, `text`, `s`, `term`, `keyword`, `k`, `kw`, `oq`). | `["example search"]` |
+| `keywordsSearch` | array | Whole words or phrases inside search parameters (`q`, `query`, `search`, `search_query`, `p`, `wd`, `text`, `s`, `term`, `keyword`, `k`, `kw`, `oq`) and in the path segment after `/search/`, `/explore/`, `/tag/` and similar. | `["example search"]` |
 | `keywordsSoft` | array | Like `keywordsSearch`, but shows the puzzle overlay instead of closing the tab (closes during lockdown). | `["example soft"]` |
 | `keywordsFuzzy` | array | Like `keywordsSearch`, but typos are tolerated too: none up to 5 letters, 1 for 6–9 letters, 2 from 10 letters (spaces not counted). Split words count as typos too. | `["examplekeyword"]` |
 | `fuzzyIgnoreWords` | array | Real words that `keywordsFuzzy` must never match because they are a typo away from a keyword. | `["exampleword"]` |
@@ -92,6 +93,7 @@ Changes apply immediately, without a browser restart.
 | `blockExtensionsPage` | boolean | Replace the extensions page with a locked page. Default `false`. | `true` |
 | `scrubHistory` | boolean | Delete closed pages from history. Default `true`. | `true` |
 | `archiveOrgCheck` | boolean | Close archive.org items that are flagged in their metadata (noindex, darkened, or an `archiveOrgTerms` match) or that show a content warning. Default `false`. | `true` |
+| `pageCheck` | boolean | Close pages that carry an adult-content label, or whose tab title or description matches `keywordsAnywhere` or `keywordsSubstring`. Default `false`. | `true` |
 
 **Order of checks.** For a tab URL, and for every page it wraps, innermost
 first, the extension checks these in turn:
@@ -102,6 +104,22 @@ first, the extension checks these in turn:
 4. Keyword rules. These are skipped for explicitly allowed destinations, also
    when viewed through a wrapper.
 5. During lockdown only: `lockdownExtraSites` and `keywordsSoft`.
+
+With `pageCheck` on, a page that passes these checks is also checked by what
+it says about itself:
+
+- An adult-content label in the page code (the RTA label, or a `rating` meta
+  tag such as `adult` or `mature`) closes the tab.
+- The tab title and the page description (`description`, Open Graph and
+  Twitter title and description tags) are matched against `keywordsAnywhere`
+  and `keywordsSubstring`, the same way a URL is. Titles are checked again
+  when they change, and the description when a single-page app rewrites it.
+- Explicitly allowed destinations are exempt.
+
+Search-parameter keyword rules also apply to the path segment after a
+search-like segment (`search`, `explore`, `discover`, `tag`, `tags`, `tagged`,
+`hashtag`, `hashtags`, `topic`, `topics`): `/explore/<term>` and
+`/tag/<term>` are searches under another name.
 
 **How keywords are matched.** Keywords and URLs are folded the same way
 before comparison: percent-decoded, lowercased, accents and invisible

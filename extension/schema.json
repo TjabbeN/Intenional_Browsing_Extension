@@ -98,6 +98,11 @@
       "title": "Check archive.org items",
       "description": "Close archive.org item pages that are flagged (noindex or darkened in metadata, a content warning on the page, or a match in archiveOrgTerms). Default: false.",
       "type": "boolean"
+    },
+    "pageCheck": {
+      "title": "Check page labels, titles and descriptions",
+      "description": "Close pages that label themselves as adult content, and pages whose tab title or description matches keywordsAnywhere or keywordsSubstring. Explicitly allowed destinations are exempt. Default: false.",
+      "type": "boolean"
     }
   }
 }
