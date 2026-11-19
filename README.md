@@ -163,10 +163,10 @@ HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\3rdparty\extensions\<EXTENSI
   number. Alternatively a list can be one `REG_SZ` value holding a JSON array.
 - Value names are case-sensitive: `blockedSites`, not `blockedsites`.
 
-`config.template.reg` has every key with placeholder values. Replace
-`<EXTENSION-ID>`, then import it as an administrator (`reg import
-config.template.reg`). Its first line deletes the previous configuration, so
-removed entries don't linger. Afterwards, `vivaldi://policy` (or
+`config/config.template.reg` has every key with placeholder values. Copy it
+outside the repository, replace `<EXTENSION-ID>` and the example values, then
+import it as an administrator (`reg import my-config.reg`). Its first line
+deletes the previous configuration, so removed entries don't linger. Afterwards, `vivaldi://policy` (or
 `chrome://policy`) lists the values in the extension's section.
 
 To install the extension so it can't be removed, force-install it with the
@@ -234,3 +234,37 @@ Intentional Browsing does not collect, sell or transmit personal data.
      That site is already being visited, so it receives no information it
      doesn't already get.
 - There are no analytics, no telemetry and no third-party services.
+
+## Development
+
+```
+extension/    the extension itself: exactly what goes into the Web Store zip
+tests/        tests that run the extension code in Node with a stubbed chrome API
+tools/        build script and the fuzzy-keyword dictionary check
+config/       policy template with placeholder values
+```
+
+Requires Node 18 or later.
+
+```
+npm install          # once
+npm test             # keyword matching, page check and content-script tests
+npm run build        # tests, then dist/intentional-browsing-<version>.zip
+npm run check:fuzzy  # dictionary words that fuzzy keywords would catch
+```
+
+The build uses `extension/` only, checks that every file the manifest names
+exists, and refuses to run if a `.reg` file is inside `extension/`.
+
+Personal policy files (`*.reg`) are ignored by git; only the template is part
+of the repository. To try changes in the browser, load `extension/` as an
+unpacked extension. The unpacked build has its own extension ID, so its
+policy goes under that ID.
+
+To release: raise the version in `extension/manifest.json` and
+`package.json`, run `npm run build`, upload the zip in the Chrome Web Store
+Developer Dashboard, and tag the commit `vX.Y.Z`.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
