@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "properties": {
+    "blockedSites": {
+      "title": "Blocked sites",
+      "description": "Tabs on these sites are closed. \"example.com\" blocks the domain and all its subdomains; \"example.com/path\" blocks URLs whose path starts with /path. Case-insensitive; www. and the scheme are ignored. Google country domains are folded onto google.com.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "allowedSubdomains": {
+      "title": "Allowed subdomains",
+      "description": "Exact hostnames that stay reachable even though a parent domain is in blockedSites, e.g. \"docs.example.com\". Also exempt from keyword rules.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "allowedPaths": {
+      "title": "Allowed paths",
+      "description": "\"host/path\" prefixes that stay reachable on a blocked domain, e.g. \"example.com/help\". Also exempt from keyword rules.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "keywordsAnywhere": {
+      "title": "Keywords matched anywhere",
+      "description": "Whole words or phrases matched anywhere in the URL (host, path, query, fragment). A match closes the tab.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "keywordsSubstring": {
+      "title": "Substring keywords",
+      "description": "Plain substrings matched anywhere in the URL, also inside longer words. Use only unambiguous strings. A match closes the tab.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "keywordsSearch": {
+      "title": "Search keywords",
+      "description": "Whole words or phrases matched only inside search query parameters (q, query, search, ...), and on translation hosts also in the URL fragment and all parameter values. A match closes the tab.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "keywordsSoft": {
+      "title": "Soft-trigger keywords",
+      "description": "Whole words or phrases matched inside search query parameters. A match shows a reflection overlay with a puzzle instead of closing the tab; during lockdown the tab is closed.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "keywordsFuzzy": {
+      "title": "Typo-tolerant keywords",
+      "description": "Like keywordsSearch, but typos and split words are tolerated as well: none up to 5 letters, 1 for 6 to 9 letters, 2 from 10 letters (spaces not counted). A match closes the tab.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fuzzyIgnoreWords": {
+      "title": "Words fuzzy keywords never match",
+      "description": "Real words that keywordsFuzzy must not match because they are a typo away from a keyword, e.g. \"browse\" for \"browser\".",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blocklistUrls": {
+      "title": "Remote block lists",
+      "description": "URLs of plain-text domain lists (one domain per line, or hosts-file format; # and ! start comments). Downloaded daily and cached; each domain is blocked with its subdomains.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "lockdownExtraSites": {
+      "title": "Lockdown-only sites",
+      "description": "Same format as blockedSites, but only blocked while a spiral lockdown is active.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "translationHosts": {
+      "title": "Translation hosts",
+      "description": "Hosts (and their subdomains) where keywordsSearch is also matched against the URL fragment and every query parameter. Leave unset to use the built-in list.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "archiveOrgTerms": {
+      "title": "archive.org metadata terms",
+      "description": "With archiveOrgCheck on, an archive.org item is closed when its title, subject, description, collection, creator or keywords contain one of these substrings.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "closeIncognitoTabs": {
+      "title": "Close incognito tabs",
+      "description": "Close every private/incognito tab as soon as it opens. The extension must be allowed in incognito. Default: false.",
+      "type": "boolean"
+    },
+    "blockExtensionsPage": {
+      "title": "Lock the extensions page",
+      "description": "Replace the browser's extensions page with a locked page. Default: false.",
+      "type": "boolean"
+    },
+    "scrubHistory": {
+      "title": "Remove blocked pages from history",
+      "description": "Delete the URL of every closed tab from browsing history. Default: true.",
+      "type": "boolean"
+    },
+    "archiveOrgCheck": {
+      "title": "Check archive.org items",
+      "description": "Close archive.org item pages that are flagged (noindex or darkened in metadata, a content warning on the page, or a match in archiveOrgTerms). Default: false.",
+      "type": "boolean"
+    }
+  }
+}

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Intentional Browsing Settings</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+    }
+    input, button {
+      margin: 5px 0;
+      width: 100%;
+    }
+    #websiteList {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .hint {
+      font-size: 11px;
+      color: #666;
+    }
+    .notice {
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 8px 10px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .notice.missing {
+      background: #fff4e5;
+      border: 1px solid #f0c27b;
+      color: #5c3b00;
+    }
+    .notice.active {
+      background: #eef6ee;
+      border: 1px solid #b7d8b7;
+      color: #1f4d1f;
+    }
+    .notice strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Intentional Browsing Settings</h2>
+
+  <div id="managedStatus" class="notice"></div>
+
+  <div>
+    <h3>Add Website</h3>
+    <input type="text" id="websiteInput" placeholder="Enter website URL">
+    <input type="number" id="delayInput" placeholder="Initial Delay in seconds" min="0">
+    <input type="number" id="delayIncrementInput" placeholder="Delay Increase (s)" min="0">
+    <input type="number" id="gracePeriodInput" placeholder="Grace Period (s, optional)" min="0">
+    <input type="number" id="minutesPerIncrementInput"
+           placeholder="Time charge: min watched per increase (0 = off)" min="0">
+    <button id="addWebsite">Add Website</button>
+  </div>
+
+  <div>
+    <h3>Configured Websites</h3>
+    <div id="websiteList"></div>
+  </div>
+
+  <div>
+    <h3>Remote Block Lists</h3>
+    <div id="blocklistStatus" class="hint" style="margin-bottom:6px;"></div>
+    <button id="updateBlocklist">Update Lists Now</button>
+  </div>
+
+  <div>
+    <h3>Block a Site</h3>
+    <div class="hint" style="margin-bottom:6px;">
+      Blocks the domain and all its subdomains, immediately. Permanent.
+    </div>
+    <input type="text" id="blockSiteInput" placeholder="example.com">
+    <button id="blockSiteButton">Block Permanently</button>
+    <div id="blockSiteStatus" class="hint"></div>
+  </div>
+
+  <div>
+    <h3>Loop-Break Page</h3>
+    <div class="hint" style="margin-bottom:6px;">
+      A page to open when you click the small dot in the corner of every page,
+      or the button on the locked page: a journal, a chat, a support resource.
+    </div>
+    <input type="text" id="loopBreakUrl" placeholder="https://…">
+    <button id="saveLoopBreakUrl">Save</button>
+    <div id="loopBreakStatus" class="hint"></div>
+  </div>
+
+  <div>
+    <h3>Customization</h3>
+    <input type="file" id="backgroundImage" accept="image/*">
+    <div id="backgroundImageStatus" class="hint"></div>
+    <img id="backgroundImagePreview" alt="" style="display:none; width:100%; max-height:90px;
+         object-fit:cover; border-radius:4px; margin:4px 0;">
+    <button id="clearBackgroundImage" style="display:none;">Remove Image</button>
+    <input type="color" id="backgroundColor" value="#f0f0f0">
+  </div>
+
+  <script src="managed-config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
