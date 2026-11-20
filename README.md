@@ -267,10 +267,6 @@ of the repository. To try changes in the browser, load `extension/` as an
 unpacked extension. The unpacked build has its own extension ID, so its
 policy goes under that ID.
 
-To release: raise the version in `extension/manifest.json` and
-`package.json`, run `npm run build`, upload the zip in the Chrome Web Store
-Developer Dashboard, and tag the commit `vX.Y.Z`.
-
 ## License
 
 GPL-3.0. See [LICENSE](LICENSE).
